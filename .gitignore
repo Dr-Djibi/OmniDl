@@ -13,3 +13,7 @@ web-build/
 # Android/Xcode
 android/
 ios/
+
+# Fichiers internes
+PASSATION.md
+context.md
