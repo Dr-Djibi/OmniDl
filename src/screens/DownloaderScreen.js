@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, ActivityIndicator, Animated,
+  StyleSheet, ScrollView, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -10,6 +10,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { C } from '../theme/colors';
 import { AppHeader, IconBtn } from '../components/UI';
+import { sendNotification } from '../services/notifications';
 
 // ── Statuts possibles d'un item de la file ──────────────────────────────────
 // pending | extracting | downloading | done | error

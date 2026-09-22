@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
+import Toast from 'react-native-toast-message';
 import { C } from '../theme/colors';
 import { AppHeader, Card, SectionTitle, Toggle } from '../components/UI';
 
@@ -66,11 +67,11 @@ export default function SettingsScreen() {
         await AsyncStorage.setItem('custom_folder_uri', finalUri);
         setDownloadFolder('Personnalisé');
         setDownloadFolderUri(finalUri);
-        Alert.alert('Succès', 'Tout est prêt ! Les fichiers iront dans le dossier OmniDL.');
+        Toast.show({ type: 'success', text1: 'Dossier configuré', text2: 'Les fichiers iront dans le dossier OmniDL.' });
       }
     } catch (e) {
       console.log('Erreur SAF', e);
-      Alert.alert('Erreur', 'Impossible de configurer le dossier.');
+      Toast.show({ type: 'error', text1: 'Erreur', text2: 'Impossible de configurer le dossier.' });
     }
   };
 
@@ -108,10 +109,10 @@ export default function SettingsScreen() {
       for (const f of files) {
         await FileSystem.deleteAsync(dir + f, { idempotent: true });
       }
-      Alert.alert('Cache système', 'Le cache a été vidé avec succès.');
+      Toast.show({ type: 'success', text1: 'Cache vidé', text2: 'Les fichiers temporaires ont été supprimés.' });
       calculateCache();
     } catch (e) {
-      Alert.alert('Erreur', 'Impossible de vider le cache.');
+      Toast.show({ type: 'error', text1: 'Erreur', text2: 'Impossible de vider le cache.' });
     }
   };
 
