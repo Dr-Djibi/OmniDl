@@ -59,8 +59,21 @@ jobs:
           cd android
           ./gradlew assembleRelease
 
+      - name: ✏️ Renommage de l'APK
+        run: mv android/app/build/outputs/apk/release/app-release.apk android/app/build/outputs/apk/release/OmniDL.apk
+
       - name: 💾 Sauvegarde de l'APK généré
         uses: actions/upload-artifact@v4
         with:
           name: OmniDL-App-Android
-          path: android/app/build/outputs/apk/release/app-release.apk
+          path: android/app/build/outputs/apk/release/OmniDL.apk
+
+      - name: 🚀 Création de la Release GitHub
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: "OmniDL v${{ github.run_number }}"
+          body: "Build automatique — commit ${{ github.sha }}"
+          files: android/app/build/outputs/apk/release/OmniDL.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
