@@ -4,7 +4,7 @@
   <p>Téléchargez des vidéos et musiques depuis n'importe quel lien.</p>
 
   <a href="../../releases/latest">
-    <img src="https://img.shields.io/github/v/release/Dr-Djibi/OmniDl?label=Télécharger&style=for-the-badge&logo=android&color=6c47ff" alt="Download APK"/>
+    <img src="https://img.shields.io/badge/Télécharger_APK-OmniDL-6c47ff?style=for-the-badge&logo=android&logoColor=white" alt="Download APK"/>
   </a>
   &nbsp;
   <img src="https://img.shields.io/github/actions/workflow/status/Dr-Djibi/OmniDl/build-apk.yml?style=for-the-badge&label=Build" alt="Build Status"/>
