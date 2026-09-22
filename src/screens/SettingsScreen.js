@@ -232,7 +232,7 @@ export default function SettingsScreen() {
         </View>
 
         <View style={s.footer}>
-          <Text style={s.footerText}>OmniDL v2.1 • Zero-Log & Open Source</Text>
+          <Text style={s.footerText}>OmniDL by Dr Djibi</Text>
         </View>
       </ScrollView>
     </SafeAreaView>
