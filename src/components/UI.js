@@ -165,7 +165,7 @@ const s = StyleSheet.create({
     borderBottomColor: C.border,
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  logo: { width: 24, height: 24, borderRadius: 6 },
+  logo: { width: 32, height: 32, borderRadius: 8 },
   appName: { color: C.text, fontSize: 16, fontWeight: '600', letterSpacing: -0.3 },
   headerSub: { color: C.muted, fontSize: 11, marginTop: 1 },
   headerRight: { flexDirection: 'row', gap: 2 },

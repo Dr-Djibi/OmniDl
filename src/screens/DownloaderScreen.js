@@ -1,5 +1,4 @@
-import React, { useState, useCallback } from 'react';
-import { useFocusEffect } from '@react-navigation/native';
+import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   Image, StyleSheet, ScrollView, ActivityIndicator, Alert
@@ -21,23 +20,6 @@ export default function DownloaderScreen({ navigation }) {
   const [downloadResult, setDownloadResult] = useState(null);
   const [error, setError] = useState(null);
 
-  useFocusEffect(
-    useCallback(() => {
-      const checkClipboard = async () => {
-        try {
-          const hasText = await Clipboard.hasStringAsync();
-          if (hasText) {
-            const text = await Clipboard.getStringAsync();
-            if (text && (text.startsWith('http://') || text.startsWith('https://')) && !url) {
-              setUrl(text);
-              setError(null);
-            }
-          }
-        } catch (e) {}
-      };
-      if (!url) { checkClipboard(); }
-    }, [url])
-  );
 
   const handlePaste = async () => {
     try {
