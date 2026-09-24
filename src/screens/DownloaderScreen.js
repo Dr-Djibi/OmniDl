@@ -1,15 +1,14 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  Image, StyleSheet, ScrollView, ActivityIndicator, Alert
+  Image, StyleSheet, ScrollView, ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
-import * as FileSystem from 'expo-file-system/legacy';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { C } from '../theme/colors';
 import { AppHeader, IconBtn, Card } from '../components/UI';
+import { enqueueDownload, getQueue } from '../services/downloadQueue';
 
 export default function DownloaderScreen({ navigation }) {
   const [url, setUrl] = useState('');
@@ -19,6 +18,13 @@ export default function DownloaderScreen({ navigation }) {
   const [isSaved, setIsSaved] = useState(false);
   const [downloadResult, setDownloadResult] = useState(null);
   const [error, setError] = useState(null);
+  const [queuedCount, setQueuedCount] = useState(0);
+
+  useEffect(() => {
+    getQueue().then(queue => {
+      setQueuedCount(queue.filter(item => item.status === 'pending' || item.status === 'downloading').length);
+    });
+  }, [isSaved]);
 
 
   const handlePaste = async () => {
@@ -72,52 +78,9 @@ export default function DownloaderScreen({ navigation }) {
     setIsSaving(true);
     setError(null);
     try {
-      const ext = (downloadResult.format === 'audio' || format === 'audio') ? 'mp3' : 'mp4';
-      const safeTitle = (downloadResult.title || 'OmniDL_Media').replace(/[^a-zA-Z0-9]/g, '_');
-      const filename = `${safeTitle}_${Date.now()}.${ext}`;
-      const fileUri = FileSystem.documentDirectory + filename;
-
-      // Téléchargement dans l'app
-      const { uri } = await FileSystem.downloadAsync(downloadResult.download_url, fileUri);
-      
-      // Copie vers le dossier utilisateur s'il en a choisi un
-      const customFolderUri = await AsyncStorage.getItem('custom_folder_uri');
-      if (customFolderUri) {
-        try {
-          const mimeType = ext === 'mp3' ? 'audio/mpeg' : 'video/mp4';
-          const newFileUri = await FileSystem.StorageAccessFramework.createFileAsync(
-            customFolderUri,
-            filename,
-            mimeType
-          );
-          const content = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
-          await FileSystem.writeAsStringAsync(newFileUri, content, { encoding: FileSystem.EncodingType.Base64 });
-        } catch (safError) {
-          console.log("Erreur de sauvegarde externe:", safError);
-        }
-      }
-
+      await enqueueDownload({ downloadResult, format });
       setIsSaved(true);
-
-      // Save to History
-      const fileInfo = await FileSystem.getInfoAsync(uri);
-      const sizeMo = fileInfo.size ? (fileInfo.size / (1024 * 1024)).toFixed(1) + ' Mo' : 'Inconnu';
-      
-      const historyItem = {
-        id: Date.now().toString(),
-        title: downloadResult.title || 'Média sans titre',
-        format: format,
-        ext: ext.toUpperCase(),
-        resolution: downloadResult.quality === 'hd' ? '1080p' : '480p',
-        size: sizeMo,
-        time: new Date().toLocaleString(),
-        uri: uri
-      };
-
-      const existing = await AsyncStorage.getItem('download_history');
-      const history = existing ? JSON.parse(existing) : [];
-      history.unshift(historyItem);
-      await AsyncStorage.setItem('download_history', JSON.stringify(history.slice(0, 50)));
+      setQueuedCount(count => count + 1);
 
     } catch (e) {
       setError('Erreur d\'enregistrement : ' + e.message);
@@ -151,6 +114,12 @@ export default function DownloaderScreen({ navigation }) {
         <View style={s.titleRow}>
           <Text style={s.h1}>Téléchargement</Text>
           <Text style={s.subtitle}>Téléchargez vidéos et audios depuis un lien.</Text>
+          {queuedCount > 0 && (
+            <View style={s.queueStatus}>
+              <MaterialIcons name="cloud-download" size={15} color={C.brand} />
+              <Text style={s.queueStatusText}>{queuedCount} téléchargement{queuedCount > 1 ? 's' : ''} en attente</Text>
+            </View>
+          )}
         </View>
 
         <View style={[s.inputRow, url.length > 0 && s.inputRowFocused]}>
@@ -264,7 +233,7 @@ export default function DownloaderScreen({ navigation }) {
                 style={{ marginRight: 6 }}
               />
               <Text style={[s.saveBtnText, isSaved && { color: C.success }]}>
-                {isSaved ? 'Enregistré dans l\'app !' : isSaving ? 'Enregistrement en cours...' : 'Enregistrer sur l\'appareil'}
+                {isSaved ? 'Ajouté à la file' : isSaving ? 'Ajout à la file...' : 'Ajouter à la file'}
               </Text>
             </TouchableOpacity>
           </Card>
@@ -281,6 +250,17 @@ const s = StyleSheet.create({
   titleRow: { gap: 4 },
   h1: { color: C.text, fontSize: 22, fontWeight: '700', letterSpacing: -0.5 },
   subtitle: { color: C.muted, fontSize: 13 },
+  queueStatus: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: C.brandSoft,
+    borderRadius: 8,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+  },
+  queueStatusText: { color: C.brand, fontSize: 12, fontWeight: '600' },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
