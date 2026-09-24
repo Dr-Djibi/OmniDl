@@ -32,6 +32,10 @@ async function writeQueue(queue) {
   await AsyncStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
 }
 
+export async function getQueue() {
+  return readQueue();
+}
+
 export async function enqueueDownload({ downloadResult, format }) {
   const item = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
