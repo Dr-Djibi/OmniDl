@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  Image, StyleSheet, ScrollView, ActivityIndicator
+  StyleSheet, ScrollView, ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { C } from '../theme/colors';
 import { AppHeader, IconBtn, Card } from '../components/UI';
-import { enqueueDownload, getQueue } from '../services/downloadQueue';
+import { enqueueDownload, getQueue, retryDownload } from '../services/downloadQueue';
 
 export default function DownloaderScreen({ navigation }) {
   const [url, setUrl] = useState('');
@@ -19,11 +19,23 @@ export default function DownloaderScreen({ navigation }) {
   const [downloadResult, setDownloadResult] = useState(null);
   const [error, setError] = useState(null);
   const [queuedCount, setQueuedCount] = useState(0);
+  const [queueItems, setQueueItems] = useState([]);
 
   useEffect(() => {
-    getQueue().then(queue => {
-      setQueuedCount(queue.filter(item => item.status === 'pending' || item.status === 'downloading').length);
-    });
+    let mounted = true;
+    const loadQueue = async () => {
+      const queue = await getQueue();
+      if (!mounted) return;
+      const activeItems = queue.filter(item => item.status !== 'completed');
+      setQueueItems(activeItems);
+      setQueuedCount(activeItems.filter(item => item.status === 'pending' || item.status === 'downloading').length);
+    };
+    loadQueue();
+    const interval = setInterval(loadQueue, 700);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
   }, [isSaved]);
 
 
@@ -74,7 +86,7 @@ export default function DownloaderScreen({ navigation }) {
   };
 
   const handleSave = async () => {
-    if (!downloadResult?.download_url) return;
+    if (!downloadResult?.download_url && !downloadResult?.downloadUrl) return;
     setIsSaving(true);
     setError(null);
     try {
@@ -87,6 +99,12 @@ export default function DownloaderScreen({ navigation }) {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleRetry = async (id) => {
+    await retryDownload(id);
+    const queue = await getQueue();
+    setQueueItems(queue.filter(item => item.status !== 'completed'));
   };
 
   return (
@@ -121,6 +139,44 @@ export default function DownloaderScreen({ navigation }) {
             </View>
           )}
         </View>
+
+        {queueItems.length > 0 && (
+          <View style={s.queueList}>
+            <Text style={s.sectionTitle}>File d’attente</Text>
+            {queueItems.map(item => {
+              const isFailed = item.status === 'failed';
+              const progress = Math.max(0, Math.min(1, item.progress || 0));
+              return (
+                <Card key={item.id} style={s.queueCard}>
+                  <View style={s.queueIcon}>
+                    <MaterialIcons
+                      name={item.format === 'audio' ? 'audiotrack' : 'movie'}
+                      size={20}
+                      color={isFailed ? C.error : item.format === 'audio' ? C.success : C.brand}
+                    />
+                  </View>
+                  <View style={s.queueDetails}>
+                    <Text style={s.queueTitle} numberOfLines={1}>{item.title}</Text>
+                    <Text style={[s.queueMeta, isFailed && s.queueMetaError]} numberOfLines={1}>
+                      {isFailed ? item.error || 'Téléchargement impossible' : item.status === 'downloading' ? `${Math.round(progress * 100)} %` : 'En attente'}
+                    </Text>
+                    {!isFailed && (
+                      <View style={s.progressTrack}>
+                        <View style={[s.progressFill, { width: `${progress * 100}%` }]} />
+                      </View>
+                    )}
+                  </View>
+                  {isFailed && (
+                    <TouchableOpacity style={s.retryBtn} onPress={() => handleRetry(item.id)}>
+                      <MaterialIcons name="refresh" size={18} color={C.brand} />
+                      <Text style={s.retryText}>Réessayer</Text>
+                    </TouchableOpacity>
+                  )}
+                </Card>
+              );
+            })}
+          </View>
+        )}
 
         <View style={[s.inputRow, url.length > 0 && s.inputRowFocused]}>
           <MaterialIcons name="link" size={20} color={C.muted} style={s.inputIcon} />
@@ -191,32 +247,28 @@ export default function DownloaderScreen({ navigation }) {
 
         {downloadResult && (
           <Card style={s.resultCard}>
-            <View style={s.thumbWrap}>
-              <Image
-                source={{ uri: downloadResult.thumbnail }}
-                style={s.thumb}
-                resizeMode="cover"
-              />
-              {downloadResult.platform && (
-                <View style={s.platformBadge}>
-                  <Text style={s.platformBadgeText}>{downloadResult.platform}</Text>
-                </View>
-              )}
-            </View>
-
             <View style={s.meta}>
-              <Text style={s.resultTitle} numberOfLines={2}>
-                {downloadResult.title}
-              </Text>
-              <View style={s.chips}>
-                <View style={s.chip}>
-                  <Text style={s.chipText}>{downloadResult.format?.toUpperCase() || (format === 'audio' ? 'MP3' : 'MP4')}</Text>
-                </View>
-                {downloadResult.quality && (
+              <View style={s.fileIconBox}>
+                <MaterialIcons
+                  name={format === 'audio' ? 'audiotrack' : 'movie'}
+                  size={24}
+                  color={format === 'audio' ? C.success : C.brand}
+                />
+              </View>
+              <View style={s.details}>
+                <Text style={s.resultTitle} numberOfLines={2}>
+                  {downloadResult.title}
+                </Text>
+                <View style={s.chips}>
                   <View style={s.chip}>
-                    <Text style={s.chipText}>{downloadResult.quality === 'hd' ? '1080p' : '480p'}</Text>
+                    <Text style={s.chipText}>{downloadResult.format?.toUpperCase() || (format === 'audio' ? 'MP3' : 'MP4')}</Text>
                   </View>
-                )}
+                  {downloadResult.quality && (
+                    <View style={s.chip}>
+                      <Text style={s.chipText}>{downloadResult.quality === 'hd' ? '1080p' : '480p'}</Text>
+                    </View>
+                  )}
+                </View>
               </View>
             </View>
 
@@ -261,6 +313,18 @@ const s = StyleSheet.create({
     paddingVertical: 6,
   },
   queueStatusText: { color: C.brand, fontSize: 12, fontWeight: '600' },
+  queueList: { gap: 8 },
+  sectionTitle: { color: C.muted, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1 },
+  queueCard: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10 },
+  queueIcon: { width: 38, height: 38, borderRadius: 9, backgroundColor: C.elevated, alignItems: 'center', justifyContent: 'center' },
+  queueDetails: { flex: 1, gap: 5 },
+  queueTitle: { color: C.text, fontSize: 13, fontWeight: '600' },
+  queueMeta: { color: C.muted, fontSize: 11 },
+  queueMetaError: { color: C.error },
+  progressTrack: { height: 5, borderRadius: 5, overflow: 'hidden', backgroundColor: C.elevated },
+  progressFill: { height: '100%', borderRadius: 5, backgroundColor: C.brand },
+  retryBtn: { flexDirection: 'row', alignItems: 'center', gap: 3, padding: 5 },
+  retryText: { color: C.brand, fontSize: 11, fontWeight: '700' },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -327,24 +391,16 @@ const s = StyleSheet.create({
   ctaDisabled: { opacity: 0.45 },
   ctaText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   resultCard: { gap: 0 },
-  thumbWrap: {
-    width: '100%',
-    aspectRatio: 16 / 9,
+  meta: { padding: 14, gap: 8, flexDirection: 'row', alignItems: 'center' },
+  details: { flex: 1, gap: 8 },
+  fileIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
     backgroundColor: C.elevated,
-    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  thumb: { width: '100%', height: '100%' },
-  platformBadge: {
-    position: 'absolute',
-    top: 10,
-    left: 10,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  platformBadgeText: { color: '#fff', fontSize: 11, fontWeight: '600' },
-  meta: { padding: 14, gap: 8 },
   resultTitle: { color: C.text, fontSize: 15, fontWeight: '600', lineHeight: 20 },
   chips: { flexDirection: 'row', gap: 6 },
   chip: {

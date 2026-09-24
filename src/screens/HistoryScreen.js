@@ -121,26 +121,12 @@ export default function HistoryScreen() {
           const isVideo = item.format === 'video';
           return (
             <Card style={s.historyCard}>
-              <View style={s.thumbBox}>
-                <View
-                  style={[
-                    s.iconBackground,
-                    {
-                      backgroundColor: isVideo
-                        ? 'rgba(94, 106, 210, 0.15)'
-                        : 'rgba(52, 211, 153, 0.15)',
-                    },
-                  ]}
-                >
-                  <MaterialIcons
-                    name={isVideo ? 'play-circle-outline' : 'audiotrack'}
-                    size={26}
-                    color={isVideo ? C.brand : C.success}
-                  />
-                </View>
-                <View style={s.formatBadge}>
-                  <Text style={s.formatBadgeText}>{item.ext || (isVideo ? 'MP4' : 'MP3')}</Text>
-                </View>
+              <View style={s.fileIconBox}>
+                <MaterialIcons
+                  name={isVideo ? 'movie' : 'audiotrack'}
+                  size={22}
+                  color={isVideo ? C.brand : C.success}
+                />
               </View>
 
               <View style={s.metaWrap}>
@@ -206,34 +192,16 @@ const s = StyleSheet.create({
     padding: 12,
     gap: 12,
   },
-  thumbBox: {
+  fileIconBox: {
     width: 56,
     height: 56,
     borderRadius: 12,
     backgroundColor: C.elevated,
     overflow: 'hidden',
-    position: 'relative',
     borderWidth: 1,
     borderColor: 'rgba(46, 50, 59, 0.5)',
-  },
-  iconBackground: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  formatBadge: {
-    position: 'absolute',
-    bottom: 3,
-    right: 3,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    borderRadius: 4,
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-  },
-  formatBadgeText: {
-    color: '#fff',
-    fontSize: 9,
-    fontWeight: '700',
   },
   metaWrap: {
     flex: 1,

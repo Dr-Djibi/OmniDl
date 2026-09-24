@@ -7,6 +7,7 @@ import { sendDownloadNotification } from './notifications';
 const QUEUE_KEY = 'download_queue';
 const HISTORY_KEY = 'download_history';
 const TASK_NAME = 'omnidl-download-queue';
+const API_ORIGIN = 'https://menma-dlx.vercel.app';
 let isProcessing = false;
 
 if (!TaskManager.isTaskDefined(TASK_NAME)) {
@@ -32,18 +33,29 @@ async function writeQueue(queue) {
   await AsyncStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
 }
 
+async function updateQueueItem(id, changes) {
+  const queue = await readQueue();
+  await writeQueue(queue.map(item => item.id === id ? { ...item, ...changes } : item));
+}
+
 export async function getQueue() {
   return readQueue();
 }
 
 export async function enqueueDownload({ downloadResult, format }) {
+  const rawDownloadUrl = downloadResult.download_url || downloadResult.downloadUrl;
+  if (!rawDownloadUrl) throw new Error('Le serveur n’a fourni aucun lien de téléchargement.');
+
   const item = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     title: downloadResult.title || 'Média sans titre',
-    downloadUrl: downloadResult.download_url,
+    downloadUrl: rawDownloadUrl.startsWith('http')
+      ? rawDownloadUrl
+      : `${API_ORIGIN}${rawDownloadUrl.startsWith('/') ? '' : '/'}${rawDownloadUrl}`,
     quality: downloadResult.quality,
     format: downloadResult.format || format,
     status: 'pending',
+    progress: 0,
     createdAt: Date.now(),
   };
   const queue = await readQueue();
@@ -96,12 +108,29 @@ async function processItem(item) {
   const ext = item.format === 'audio' ? 'mp3' : 'mp4';
   const filename = makeSafeFilename(item.title, ext);
   const temporaryUri = `${FileSystem.documentDirectory}${filename}`;
-  const queue = await readQueue();
-  await writeQueue(queue.map(entry => entry.id === item.id
-    ? { ...entry, status: 'downloading', filename, ext }
-    : entry));
+  await updateQueueItem(item.id, { status: 'downloading', filename, ext, progress: 0, error: null });
 
-  const result = await FileSystem.downloadAsync(item.downloadUrl, temporaryUri);
+  let lastProgressUpdate = 0;
+  const resumable = FileSystem.createDownloadResumable(
+    item.downloadUrl,
+    temporaryUri,
+    { headers: { 'X-Tenant-Key': 'key_app' } },
+    ({ totalBytesWritten, totalBytesExpectedToWrite }) => {
+      const progress = totalBytesExpectedToWrite > 0
+        ? totalBytesWritten / totalBytesExpectedToWrite
+        : 0;
+      const now = Date.now();
+      if (now - lastProgressUpdate >= 250 || progress >= 1) {
+        lastProgressUpdate = now;
+        updateQueueItem(item.id, { progress }).catch(() => {});
+      }
+    }
+  );
+  const result = await resumable.downloadAsync();
+  if (!result) throw new Error('Le téléchargement a été interrompu.');
+  if (result.status < 200 || result.status >= 300) {
+    throw new Error(`Le serveur a refusé le téléchargement (${result.status}).`);
+  }
   const info = await FileSystem.getInfoAsync(result.uri);
   const finalUri = await moveToDestination(result.uri, filename, ext);
   await saveHistory({ ...item, ext }, finalUri, info.size);
@@ -109,8 +138,16 @@ async function processItem(item) {
 
   const latestQueue = await readQueue();
   await writeQueue(latestQueue.map(entry => entry.id === item.id
-    ? { ...entry, status: 'completed', uri: finalUri, size: info.size }
+    ? { ...entry, status: 'completed', progress: 1, uri: finalUri, size: info.size, error: null }
     : entry));
+}
+
+export async function retryDownload(id) {
+  const queue = await readQueue();
+  await writeQueue(queue.map(item => item.id === id
+    ? { ...item, status: 'pending', progress: 0, error: null }
+    : item));
+  processQueue();
 }
 
 export async function processQueue() {
@@ -125,7 +162,7 @@ export async function processQueue() {
     } catch (error) {
       const latestQueue = await readQueue();
       await writeQueue(latestQueue.map(item => item.id === next.id
-        ? { ...item, status: 'failed', error: error.message }
+        ? { ...item, status: 'failed', progress: 0, error: error.message }
         : item));
       await sendDownloadNotification('Téléchargement impossible', next.title, { id: next.id });
     }

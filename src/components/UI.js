@@ -10,7 +10,6 @@ const LOGO = require('../../assets/icon.png');
 const TAB_ICONS = {
   Downloader: { icon: 'file-download',  label: 'Téléchargeur' },
   History:    { icon: 'history',         label: 'Historique'   },
-  Files:      { icon: 'folder',          label: 'Fichiers'     },
   Settings:   { icon: 'settings',        label: 'Paramètres'   },
 };
 

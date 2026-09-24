@@ -1,0 +1,6 @@
+#!/bin/sh
+
+set -eu
+
+printf '%s\n' 'Verification avant push: npm run check'
+npm run check
