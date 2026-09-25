@@ -6,7 +6,8 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "check": "expo export --platform android"
+    "check": "expo export --platform android",
+    "lint": "expo lint"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
@@ -30,7 +31,9 @@
     "react-native-toast-message": "^2.5.2"
   },
   "devDependencies": {
-    "@babel/core": "^7.20.0"
+    "@babel/core": "^7.20.0",
+    "eslint": "^9.0.0",
+    "eslint-config-expo": "~57.0.2"
   },
   "private": true
 }

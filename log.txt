@@ -1,0 +1,97 @@
+
+› Using Expo Go (Press s to switch to development build)
+› Press ? │ show all commands
+
+› Stopped server
+❯ npx expo start -c
+npm notice run omnidl@1.0.0 npx
+npm notice run 'expo' start -c
+Starting project at /home/menma/downloader-app
+Starting Metro Bundler
+
+warning: Bundler cache is empty, rebuilding (this may take a minute)
+🬕🬰🬰🬒🬝🬨🬎🬰🬎🬕🬰🬰🬒▌
+▌▌ ▌🬴🬖🬘🬗🬯▌▌ ▌▌
+🬲🬰🬰🬮🬲🬲🬕🬲🬔🬲🬰🬰🬮▌
+▌🬃🬃🬌🬱🬦🬌🬠🬎🬫🬜▐🬉▌
+🬛🬇🬘🬳🬯🬇🬘🬊🬯🬥🬰🬅🬪▌
+▌🬛🬚🬛🬟🬹🬕🬬🬔🬀🬅🬇 ▌
+🬕🬰🬰🬒🬲🬤🬡🬺🬃🬴▌🬣🬒▌
+▌▌ ▌▌🬜🬱🬯🬇🬢🬭🬓🬒▌
+🬲🬰🬰🬮🬲🬲🬺🬸🬶🬹🬻🬳🬮▌
+
+› Scan the QR code above to open in Expo Go.
+› Metro: exp://192.168.1.194:8081
+
+› Using Expo Go (Press s to switch to development build)
+› Press ? │ show all commands
+
+Logs for your project will appear below. Press Ctrl+C to exit.
+› Stopped server
+❯ npx expo-doctor
+npm notice run omnidl@1.0.0 npx
+npm notice run 'expo-doctor'
+Unexpected error while running 'Check Expo config (app.json/ app.config.js) schema' check:
+TypeError: fetch failed
+ConnectTimeoutError: Connect Timeout Error (attempted address: exp.host:443, timeout: 10000ms)
+This check requires a connection to the Expo API. Ensure your network connection is stable.
+1 check failed, indicating possible issues with the project.
+❯ npx expo lint
+npm notice run omnidl@1.0.0 npx
+npm notice run 'expo' lint
+✔ No ESLint config found. Install and configure ESLint in this project? … yes
+ESLint is required to lint your project. Installing eslint@^9.0.0, eslint-config-expo@~57.0.2
+
+› Installing 2 other packages using npm
+› Using ~57.0.2 instead of ~57.0.2 for eslint-config-expo because this version was explicitly provided. Packages excluded from dependency validation should be listed in expo.install.exclude in package.json. Learn more: https://docs.expo.dev/more/expo-cli/\#configuring-dependency-validation
+> npm install
+⠋ Installing eslint@^9.0.0, eslint-config-expo@~57.0.2
+⠋
+npm warn deprecated eslint@9.39.5: This version is no longer supported. Please see https://eslint.org/version-support for other options.
+
+added 234 packages, and audited 755 packages in 12m
+
+162 packages are looking for funding
+  run `npm fund` for details
+
+11 moderate severity vulnerabilities
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+npm warn install-scripts 1 package had install scripts blocked because they are not covered by allowScripts:
+npm warn install-scripts   unrs-resolver@1.12.2 (postinstall: node postinstall.js)
+npm warn install-scripts
+npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.
+✔ Installed eslint@^9.0.0, eslint-config-expo@~57.0.2
+
+ESLint has been configured 🎉
+
+Error: Cannot find module 'eslint'
+Require stack:
+- /home/menma/downloader-app/node_modules/expo/node_modules/@expo/cli/build/src/lint/lintAsync.js
+- /home/menma/downloader-app/node_modules/expo/node_modules/@expo/cli/build/src/lint/index.js
+- /home/menma/downloader-app/node_modules/expo/node_modules/@expo/cli/build/bin/cli
+- /home/menma/downloader-app/node_modules/expo/bin/cli
+Error: Cannot find module 'eslint'
+Require stack:
+- /home/menma/downloader-app/node_modules/expo/node_modules/@expo/cli/build/src/lint/lintAsync.js
+- /home/menma/downloader-app/node_modules/expo/node_modules/@expo/cli/build/src/lint/index.js
+- /home/menma/downloader-app/node_modules/expo/node_modules/@expo/cli/build/bin/cli
+- /home/menma/downloader-app/node_modules/expo/bin/cli
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1591:15)
+    at wrapResolveFilename (node:internal/modules/cjs/loader:1145:27)
+    at defaultResolveImplForCJSLoading (node:internal/modules/cjs/loader:1169:10)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1196:12)
+    at Module._load (node:internal/modules/cjs/loader:1368:5)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
+    at Module.require (node:internal/modules/cjs/loader:1701:12)
+    at require (node:internal/modules/helpers:316:16)
+    at lintAsync (/home/menma/downloader-app/node_modules/expo/node_modules/@expo/cli/build/src/lint/lintAsync.js:108:28)
+❯ 
+
+
+
+
+
