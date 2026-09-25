@@ -76,10 +76,10 @@ export default function DownloaderScreen({ navigation }) {
       if (data.success) {
         setDownloadResult(data);
       } else {
-        setError(data.error || 'Extraction échouée');
+        setError('Impossible de préparer ce téléchargement. Vérifiez le lien et réessayez.');
       }
     } catch (e) {
-      setError('Erreur de connexion : ' + e.message);
+      setError('Connexion impossible. Vérifiez Internet et réessayez.');
     } finally {
       setIsExtracting(false);
     }
@@ -95,7 +95,7 @@ export default function DownloaderScreen({ navigation }) {
       setQueuedCount(count => count + 1);
 
     } catch (e) {
-      setError('Erreur d\'enregistrement : ' + e.message);
+      setError('Impossible d’ajouter ce téléchargement. Réessayez.');
     } finally {
       setIsSaving(false);
     }
@@ -139,44 +139,6 @@ export default function DownloaderScreen({ navigation }) {
             </View>
           )}
         </View>
-
-        {queueItems.length > 0 && (
-          <View style={s.queueList}>
-            <Text style={s.sectionTitle}>File d’attente</Text>
-            {queueItems.map(item => {
-              const isFailed = item.status === 'failed';
-              const progress = Math.max(0, Math.min(1, item.progress || 0));
-              return (
-                <Card key={item.id} style={s.queueCard}>
-                  <View style={s.queueIcon}>
-                    <MaterialIcons
-                      name={item.format === 'audio' ? 'audiotrack' : 'movie'}
-                      size={20}
-                      color={isFailed ? C.error : item.format === 'audio' ? C.success : C.brand}
-                    />
-                  </View>
-                  <View style={s.queueDetails}>
-                    <Text style={s.queueTitle} numberOfLines={1}>{item.title}</Text>
-                    <Text style={[s.queueMeta, isFailed && s.queueMetaError]} numberOfLines={1}>
-                      {isFailed ? item.error || 'Téléchargement impossible' : item.status === 'downloading' ? `${Math.round(progress * 100)} %` : 'En attente'}
-                    </Text>
-                    {!isFailed && (
-                      <View style={s.progressTrack}>
-                        <View style={[s.progressFill, { width: `${progress * 100}%` }]} />
-                      </View>
-                    )}
-                  </View>
-                  {isFailed && (
-                    <TouchableOpacity style={s.retryBtn} onPress={() => handleRetry(item.id)}>
-                      <MaterialIcons name="refresh" size={18} color={C.brand} />
-                      <Text style={s.retryText}>Réessayer</Text>
-                    </TouchableOpacity>
-                  )}
-                </Card>
-              );
-            })}
-          </View>
-        )}
 
         <View style={[s.inputRow, url.length > 0 && s.inputRowFocused]}>
           <MaterialIcons name="link" size={20} color={C.muted} style={s.inputIcon} />
@@ -289,6 +251,44 @@ export default function DownloaderScreen({ navigation }) {
               </Text>
             </TouchableOpacity>
           </Card>
+        )}
+
+        {queueItems.length > 0 && (
+          <View style={s.queueList}>
+            <Text style={s.sectionTitle}>File d’attente</Text>
+            {queueItems.map(item => {
+              const isFailed = item.status === 'failed';
+              const progress = Math.max(0, Math.min(1, item.progress || 0));
+              return (
+                <Card key={item.id} style={s.queueCard}>
+                  <View style={s.queueIcon}>
+                    <MaterialIcons
+                      name={item.format === 'audio' ? 'audiotrack' : 'movie'}
+                      size={20}
+                      color={isFailed ? C.error : item.format === 'audio' ? C.success : C.brand}
+                    />
+                  </View>
+                  <View style={s.queueDetails}>
+                    <Text style={s.queueTitle} numberOfLines={1}>{item.title}</Text>
+                    <Text style={[s.queueMeta, isFailed && s.queueMetaError]} numberOfLines={1}>
+                      {isFailed ? 'Téléchargement impossible. Réessayez.' : item.status === 'downloading' ? `${Math.round(progress * 100)} %` : 'En attente'}
+                    </Text>
+                    {!isFailed && (
+                      <View style={s.progressTrack}>
+                        <View style={[s.progressFill, { width: `${progress * 100}%` }]} />
+                      </View>
+                    )}
+                  </View>
+                  {isFailed && (
+                    <TouchableOpacity style={s.retryBtn} onPress={() => handleRetry(item.id)}>
+                      <MaterialIcons name="refresh" size={18} color={C.brand} />
+                      <Text style={s.retryText}>Réessayer</Text>
+                    </TouchableOpacity>
+                  )}
+                </Card>
+              );
+            })}
+          </View>
         )}
       </ScrollView>
     </SafeAreaView>

@@ -84,24 +84,20 @@ async function moveToDestination(sourceUri, filename, ext) {
   const customFolderUri = await AsyncStorage.getItem('custom_folder_uri');
   if (!customFolderUri) return sourceUri;
 
-  const destinationUri = await FileSystem.StorageAccessFramework.createFileAsync(
-    customFolderUri,
-    filename,
-    ext === 'mp3' ? 'audio/mpeg' : 'video/mp4'
-  );
-
   try {
+    await FileSystem.StorageAccessFramework.readDirectoryAsync(customFolderUri);
+    const destinationUri = await FileSystem.StorageAccessFramework.createFileAsync(
+      customFolderUri,
+      filename,
+      ext === 'mp3' ? 'audio/mpeg' : 'video/mp4'
+    );
     await FileSystem.copyAsync({ from: sourceUri, to: destinationUri });
-  } catch (copyError) {
-    const content = await FileSystem.readAsStringAsync(sourceUri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-    await FileSystem.writeAsStringAsync(destinationUri, content, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
+    await FileSystem.deleteAsync(sourceUri, { idempotent: true });
+    return destinationUri;
+  } catch (storageError) {
+    await AsyncStorage.removeItem('custom_folder_uri');
+    return sourceUri;
   }
-  await FileSystem.deleteAsync(sourceUri, { idempotent: true });
-  return destinationUri;
 }
 
 async function processItem(item) {
@@ -162,7 +158,7 @@ export async function processQueue() {
     } catch (error) {
       const latestQueue = await readQueue();
       await writeQueue(latestQueue.map(item => item.id === next.id
-        ? { ...item, status: 'failed', progress: 0, error: error.message }
+        ? { ...item, status: 'failed', progress: 0, error: 'Téléchargement impossible. Appuyez sur Réessayer.' }
         : item));
       await sendDownloadNotification('Téléchargement impossible', next.title, { id: next.id });
     }
