@@ -15,10 +15,20 @@ export default function SettingsScreen() {
   const [downloadFolder, setDownloadFolder] = useState('Auto');
   const [downloadFolderUri, setDownloadFolderUri] = useState(null);
 
-  useEffect(() => {
-    loadSettings();
-    calculateCache();
-  }, []);
+  const calculateCache = async () => {
+    try {
+      const dir = FileSystem.cacheDirectory;
+      const files = await FileSystem.readDirectoryAsync(dir);
+      let total = 0;
+      for (const f of files) {
+        const info = await FileSystem.getInfoAsync(dir + f);
+        if (info.exists && info.size) total += info.size;
+      }
+      setCacheSize((total / (1024 * 1024)).toFixed(1) + ' Mo');
+    } catch (_e) {
+      console.log(_e);
+    }
+  };
 
   const loadSettings = async () => {
     try {
@@ -35,10 +45,16 @@ export default function SettingsScreen() {
         setDownloadFolder('Personnalisé');
         setDownloadFolderUri(folderUri);
       }
-    } catch (e) {
+    } catch (_e) {
       console.log("Erreur chargement paramètres");
     }
   };
+
+  useEffect(() => {
+    loadSettings();
+    calculateCache();
+  }, []);
+
 
   const handleSelectFolder = async () => {
     try {
@@ -86,20 +102,6 @@ export default function SettingsScreen() {
     }
   };
 
-  const calculateCache = async () => {
-    try {
-      const dir = FileSystem.cacheDirectory;
-      const files = await FileSystem.readDirectoryAsync(dir);
-      let total = 0;
-      for (const f of files) {
-        const info = await FileSystem.getInfoAsync(dir + f);
-        if (info.exists && info.size) total += info.size;
-      }
-      setCacheSize((total / (1024 * 1024)).toFixed(1) + ' Mo');
-    } catch (e) {
-      console.log(e);
-    }
-  };
 
   const handleClearCache = async () => {
     try {
@@ -181,7 +183,7 @@ export default function SettingsScreen() {
             <View style={s.row}>
               <View style={s.rowTextWrap}>
                 <Text style={s.rowTitle}>Télécharger en Wi-Fi uniquement</Text>
-                <Text style={s.rowSubtitle}>Évite d'utiliser le forfait données mobiles</Text>
+                <Text style={s.rowSubtitle}>Évite d&apos;utiliser le forfait données mobiles</Text>
               </View>
               <Toggle value={wifiOnly} onValueChange={(val) => updateSetting('wifiOnly', val, setWifiOnly)} />
             </View>

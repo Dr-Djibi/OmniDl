@@ -78,7 +78,7 @@ export default function MainScreen() {
         {/* Titre */}
         <View style={styles.titleSection}>
           <Text style={styles.h1}>Téléchargement</Text>
-          <Text style={styles.subtitle}>Téléchargez vidéos et audios à partir d'un lien.</Text>
+          <Text style={styles.subtitle}>Téléchargez vidéos et audios à partir d&apos;un lien.</Text>
         </View>
 
         {/* Input */}

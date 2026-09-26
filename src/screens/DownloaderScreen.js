@@ -68,7 +68,7 @@ export default function DownloaderScreen({ navigation }) {
       let data;
       try {
         data = JSON.parse(responseText);
-      } catch (parseError) {
+      } catch (_parseError) {
         // Le backend n'a pas renvoyé de JSON, on crée un objet d'erreur avec le texte brut reçu
         data = { success: false, error: responseText || "Le serveur a renvoyé une réponse invalide." };
       }
@@ -78,7 +78,7 @@ export default function DownloaderScreen({ navigation }) {
       } else {
         setError('Impossible de préparer ce téléchargement. Vérifiez le lien et réessayez.');
       }
-    } catch (e) {
+    } catch (_e) {
       setError('Connexion impossible. Vérifiez Internet et réessayez.');
     } finally {
       setIsExtracting(false);
@@ -94,7 +94,7 @@ export default function DownloaderScreen({ navigation }) {
       setIsSaved(true);
       setQueuedCount(count => count + 1);
 
-    } catch (e) {
+    } catch (_e) {
       setError('Impossible d’ajouter ce téléchargement. Réessayez.');
     } finally {
       setIsSaving(false);

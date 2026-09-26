@@ -94,7 +94,7 @@ async function moveToDestination(sourceUri, filename, ext) {
     await FileSystem.copyAsync({ from: sourceUri, to: destinationUri });
     await FileSystem.deleteAsync(sourceUri, { idempotent: true });
     return destinationUri;
-  } catch (storageError) {
+  } catch (_storageError) {
     await AsyncStorage.removeItem('custom_folder_uri');
     return sourceUri;
   }
@@ -155,7 +155,7 @@ export async function processQueue() {
     if (!next) return;
     try {
       await processItem(next);
-    } catch (error) {
+    } catch (_error) {
       const latestQueue = await readQueue();
       await writeQueue(latestQueue.map(item => item.id === next.id
         ? { ...item, status: 'failed', progress: 0, error: 'Téléchargement impossible. Appuyez sur Réessayer.' }

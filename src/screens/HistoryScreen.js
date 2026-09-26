@@ -18,12 +18,6 @@ export default function HistoryScreen() {
   const [filter, setFilter] = useState('all'); // 'all' | 'video' | 'audio'
   const [historyItems, setHistoryItems] = useState([]);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadHistory();
-    }, [])
-  );
-
   const loadHistory = async () => {
     try {
       const stored = await AsyncStorage.getItem('download_history');
@@ -32,10 +26,16 @@ export default function HistoryScreen() {
       } else {
         setHistoryItems([]);
       }
-    } catch (e) {
+    } catch (_e) {
       setHistoryItems([]);
     }
   };
+
+  useFocusEffect(
+    useCallback(() => {
+      loadHistory();
+    }, [])
+  );
 
   const handleClearAll = () => {
     if (historyItems.length === 0) return;
@@ -114,7 +114,7 @@ export default function HistoryScreen() {
         ListEmptyComponent={
           <View style={s.emptyContainer}>
             <MaterialIcons name="history" size={48} color={C.subtle} />
-            <Text style={s.emptyText}>Aucun téléchargement dans l'historique</Text>
+            <Text style={s.emptyText}>Aucun téléchargement dans l&apos;historique</Text>
           </View>
         }
         renderItem={({ item }) => {
