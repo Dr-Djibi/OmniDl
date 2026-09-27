@@ -4,13 +4,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
 import { C } from '../theme/colors';
-import { AppHeader, Card, SectionTitle, Toggle } from '../components/UI';
+import { AppHeader, Card, SectionTitle } from '../components/UI';
 
 export default function SettingsScreen() {
-  const [wifiOnly, setWifiOnly] = useState(true);
   const [videoQuality, setVideoQuality] = useState('1080p Full HD');
   const [audioFormat, setAudioFormat] = useState('MP3 320 kbps');
-  const [simultaneousDownloads, setSimultaneousDownloads] = useState('2 à la fois');
   const [cacheSize, setCacheSize] = useState('0 Mo');
   const [downloadFolder, setDownloadFolder] = useState('Auto');
   const [downloadFolderUri, setDownloadFolderUri] = useState(null);
@@ -35,10 +33,8 @@ export default function SettingsScreen() {
       const settings = await AsyncStorage.getItem('app_settings');
       if (settings) {
         const parsed = JSON.parse(settings);
-        setWifiOnly(parsed.wifiOnly ?? true);
         setVideoQuality(parsed.videoQuality ?? '1080p Full HD');
         setAudioFormat(parsed.audioFormat ?? 'MP3 320 kbps');
-        setSimultaneousDownloads(parsed.simultaneousDownloads ?? '2 à la fois');
       }
       const folderUri = await AsyncStorage.getItem('custom_folder_uri');
       if (folderUri) {
@@ -58,23 +54,18 @@ export default function SettingsScreen() {
     init();
   }, []);
 
-
   const handleSelectFolder = async () => {
     try {
-      // Demande l'accès à un dossier (demande à l'utilisateur de choisir "Téléchargements")
       const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
       
       if (permissions.granted) {
         let finalUri = permissions.directoryUri;
         
-        // Essaie de créer un sous-dossier "OmniDL"
         try {
-          // On vérifie si l'utilisateur n'a pas DÉJÀ sélectionné un dossier qui s'appelle OmniDL
           if (!decodeURIComponent(finalUri).endsWith('OmniDL')) {
             finalUri = await FileSystem.StorageAccessFramework.makeDirectoryAsync(permissions.directoryUri, 'OmniDL');
           }
         } catch (_dirError) {
-          // Le dossier existe peut-être déjà, on va devoir le chercher dans le contenu
           const files = await FileSystem.StorageAccessFramework.readDirectoryAsync(permissions.directoryUri);
           const existingOmniDL = files.find(f => decodeURIComponent(f).endsWith('OmniDL'));
           if (existingOmniDL) {
@@ -104,7 +95,6 @@ export default function SettingsScreen() {
       console.log("Erreur sauvegarde paramètre", e);
     }
   };
-
 
   const handleClearCache = async () => {
     try {
@@ -178,59 +168,18 @@ export default function SettingsScreen() {
           </Card>
         </View>
 
-        {/* Section: Réseau & Données */}
+        {/* Section: Maintenance */}
         <View style={s.section}>
-          <SectionTitle>Réseau & Données</SectionTitle>
+          <SectionTitle>Maintenance</SectionTitle>
           <Card style={s.groupCard}>
-            {/* Wi-Fi Uniquement */}
-            <View style={s.row}>
-              <View style={s.rowTextWrap}>
-                <Text style={s.rowTitle}>Télécharger en Wi-Fi uniquement</Text>
-                <Text style={s.rowSubtitle}>Évite d&apos;utiliser le forfait données mobiles</Text>
-              </View>
-              <Toggle value={wifiOnly} onValueChange={(val) => updateSetting('wifiOnly', val, setWifiOnly)} />
-            </View>
-
-            <View style={s.divider} />
-
-            {/* Simultanés */}
-            <View style={s.row}>
-              <View style={s.rowTextWrap}>
-                <Text style={s.rowTitle}>Téléchargements simultanés</Text>
-                <Text style={s.rowSubtitle}>Limite les flux simultanés</Text>
-              </View>
-              <TouchableOpacity style={s.selectPill} onPress={() => updateSetting('simultaneousDownloads', simultaneousDownloads === '2 à la fois' ? '4 à la fois' : '2 à la fois', setSimultaneousDownloads)}>
-                <Text style={s.selectPillText}>{simultaneousDownloads}</Text>
-              </TouchableOpacity>
-            </View>
-          </Card>
-        </View>
-
-        {/* Section: Général & Confidentialité */}
-        <View style={s.section}>
-          <SectionTitle>Général & Confidentialité</SectionTitle>
-          <Card style={s.groupCard}>
-            {/* Mode Sombre */}
-            <View style={s.row}>
-              <View style={s.rowTextWrap}>
-                <Text style={s.rowTitle}>Mode sombre</Text>
-                <Text style={s.rowSubtitle}>Thème Obsidian Stream</Text>
-              </View>
-              <View style={s.badgeDark}>
-                <Text style={s.badgeDarkText}>Activé</Text>
-              </View>
-            </View>
-
-            <View style={s.divider} />
-
             {/* Vider le cache */}
             <View style={s.row}>
               <View style={s.rowTextWrap}>
                 <Text style={s.rowTitle}>Vider le cache</Text>
-                <Text style={s.rowSubtitle}>Fichiers temporaires & aperçus</Text>
+                <Text style={s.rowSubtitle}>Fichiers temporaires & aperçus ({cacheSize})</Text>
               </View>
               <TouchableOpacity style={s.clearCacheBtn} onPress={handleClearCache}>
-                <Text style={s.clearCacheBtnText}>Vider {cacheSize}</Text>
+                <Text style={s.clearCacheBtnText}>Vider</Text>
               </TouchableOpacity>
             </View>
           </Card>
