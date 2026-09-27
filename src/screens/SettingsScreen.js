@@ -51,8 +51,11 @@ export default function SettingsScreen() {
   };
 
   useEffect(() => {
-    loadSettings();
-    calculateCache();
+    const init = async () => {
+      await loadSettings();
+      await calculateCache();
+    };
+    init();
   }, []);
 
 
@@ -70,7 +73,7 @@ export default function SettingsScreen() {
           if (!decodeURIComponent(finalUri).endsWith('OmniDL')) {
             finalUri = await FileSystem.StorageAccessFramework.makeDirectoryAsync(permissions.directoryUri, 'OmniDL');
           }
-        } catch (dirError) {
+        } catch (_dirError) {
           // Le dossier existe peut-être déjà, on va devoir le chercher dans le contenu
           const files = await FileSystem.StorageAccessFramework.readDirectoryAsync(permissions.directoryUri);
           const existingOmniDL = files.find(f => decodeURIComponent(f).endsWith('OmniDL'));
@@ -84,8 +87,8 @@ export default function SettingsScreen() {
         setDownloadFolderUri(finalUri);
         Alert.alert('Succès', 'Tout est prêt ! Les fichiers iront dans le dossier OmniDL.');
       }
-    } catch (e) {
-      console.log('Erreur SAF', e);
+    } catch (_e) {
+      console.log('Erreur SAF', _e);
       Alert.alert('Erreur', 'Impossible de configurer le dossier.');
     }
   };
@@ -112,7 +115,7 @@ export default function SettingsScreen() {
       }
       Alert.alert('Cache système', 'Le cache a été vidé avec succès.');
       calculateCache();
-    } catch (e) {
+    } catch (_e) {
       Alert.alert('Erreur', 'Impossible de vider le cache.');
     }
   };
