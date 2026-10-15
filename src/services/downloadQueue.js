@@ -6,14 +6,24 @@ import { sendDownloadNotification } from './notifications';
 
 const QUEUE_KEY = 'download_queue';
 const HISTORY_KEY = 'download_history';
+const RESUME_KEY_PREFIX = 'download_resume_';
 const TASK_NAME = 'omnidl-download-queue';
 const API_ORIGIN = 'https://menma-dlx.vercel.app';
 let isProcessing = false;
 
 if (!TaskManager.isTaskDefined(TASK_NAME)) {
   TaskManager.defineTask(TASK_NAME, async () => {
-    await processQueue();
-    return BackgroundFetch.BackgroundFetchResult.NewData;
+    try {
+      const queue = await readQueue();
+      const hasPending = queue.some(item => item.status === 'pending' || item.status === 'downloading');
+      if (hasPending) {
+        await processQueue();
+        return BackgroundFetch.BackgroundFetchResult.NewData;
+      }
+      return BackgroundFetch.BackgroundFetchResult.NoData;
+    } catch {
+      return BackgroundFetch.BackgroundFetchResult.Failed;
+    }
   });
 }
 
@@ -102,27 +112,68 @@ async function moveToDestination(sourceUri, filename, ext) {
 
 async function processItem(item) {
   const ext = item.format === 'audio' ? 'mp3' : 'mp4';
-  const filename = makeSafeFilename(item.title, ext);
+  const filename = item.filename || makeSafeFilename(item.title, ext);
   const temporaryUri = `${FileSystem.documentDirectory}${filename}`;
-  await updateQueueItem(item.id, { status: 'downloading', filename, ext, progress: 0, error: null });
+  await updateQueueItem(item.id, { status: 'downloading', filename, ext, error: null });
 
   let lastProgressUpdate = 0;
-  const resumable = FileSystem.createDownloadResumable(
-    item.downloadUrl,
-    temporaryUri,
-    { headers: { 'X-Tenant-Key': 'key_app' } },
-    ({ totalBytesWritten, totalBytesExpectedToWrite }) => {
-      const progress = totalBytesExpectedToWrite > 0
-        ? totalBytesWritten / totalBytesExpectedToWrite
-        : 0;
-      const now = Date.now();
-      if (now - lastProgressUpdate >= 250 || progress >= 1) {
-        lastProgressUpdate = now;
-        updateQueueItem(item.id, { progress }).catch(() => {});
-      }
+  let lastProgressValue = item.progress || 0;
+
+  const callback = ({ totalBytesWritten, totalBytesExpectedToWrite }) => {
+    const progress = totalBytesExpectedToWrite > 0
+      ? totalBytesWritten / totalBytesExpectedToWrite
+      : 0;
+    const now = Date.now();
+    if (now - lastProgressUpdate >= 500 || Math.abs(progress - lastProgressValue) >= 0.05 || progress >= 1) {
+      lastProgressUpdate = now;
+      lastProgressValue = progress;
+      updateQueueItem(item.id, { progress }).catch(() => {});
     }
-  );
+  };
+
+  const resumeKey = `${RESUME_KEY_PREFIX}${item.id}`;
+  const storedResumeData = await AsyncStorage.getItem(resumeKey);
+
+  let resumable;
+  if (storedResumeData) {
+    try {
+      const savable = JSON.parse(storedResumeData);
+      resumable = new FileSystem.DownloadResumable(
+        savable.url,
+        savable.fileUri,
+        savable.options,
+        callback,
+        savable.resumeData
+      );
+    } catch {
+      resumable = FileSystem.createDownloadResumable(
+        item.downloadUrl,
+        temporaryUri,
+        { headers: { 'X-Tenant-Key': 'key_app' } },
+        callback
+      );
+    }
+  } else {
+    resumable = FileSystem.createDownloadResumable(
+      item.downloadUrl,
+      temporaryUri,
+      { headers: { 'X-Tenant-Key': 'key_app' } },
+      callback
+    );
+  }
+
+  try {
+    const savable = resumable.savable();
+    if (savable) {
+      await AsyncStorage.setItem(resumeKey, JSON.stringify(savable));
+    }
+  } catch (_e) {
+    // Ignore if savable state is unavailable
+  }
+
   const result = await resumable.downloadAsync();
+  await AsyncStorage.removeItem(resumeKey);
+
   if (!result) throw new Error('Le téléchargement a été interrompu.');
   if (result.status < 200 || result.status >= 300) {
     throw new Error(`Le serveur a refusé le téléchargement (${result.status}).`);
@@ -140,6 +191,7 @@ async function processItem(item) {
 
 export async function retryDownload(id) {
   const queue = await readQueue();
+  await AsyncStorage.removeItem(`${RESUME_KEY_PREFIX}${id}`);
   await writeQueue(queue.map(item => item.id === id
     ? { ...item, status: 'pending', progress: 0, error: null }
     : item));
@@ -150,22 +202,26 @@ export async function processQueue() {
   if (isProcessing) return;
   isProcessing = true;
   try {
-    const queue = await readQueue();
-    const next = queue.find(item => item.status === 'pending' || item.status === 'downloading');
-    if (!next) return;
-    try {
-      await processItem(next);
-    } catch (_error) {
-      const latestQueue = await readQueue();
-      await writeQueue(latestQueue.map(item => item.id === next.id
-        ? { ...item, status: 'failed', progress: 0, error: 'Téléchargement impossible. Appuyez sur Réessayer.' }
-        : item));
-      await sendDownloadNotification('Téléchargement impossible', next.title, { id: next.id });
+    let queue = await readQueue();
+    let next = queue.find(item => item.status === 'pending' || item.status === 'downloading');
+
+    while (next) {
+      try {
+        await processItem(next);
+      } catch (_error) {
+        const latestQueue = await readQueue();
+        await writeQueue(latestQueue.map(item => item.id === next.id
+          ? { ...item, status: 'failed', progress: 0, error: 'Téléchargement impossible. Appuyez sur Réessayer.' }
+          : item));
+        await sendDownloadNotification('Téléchargement impossible', next.title, { id: next.id });
+      }
+
+      queue = await readQueue();
+      next = queue.find(item => item.status === 'pending' || item.status === 'downloading');
     }
   } finally {
     isProcessing = false;
   }
-  processQueue();
 }
 
 export async function registerQueueTask() {
