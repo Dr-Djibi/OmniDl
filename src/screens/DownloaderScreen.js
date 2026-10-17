@@ -8,7 +8,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { C } from '../theme/colors';
 import { AppHeader, IconBtn, Card } from '../components/UI';
-import { enqueueDownload, getQueue, retryDownload } from '../services/downloadQueue';
+import { enqueueDownload, getQueue, retryDownload, removeQueueItem, clearQueue } from '../services/downloadQueue';
 
 export default function DownloaderScreen({ navigation }) {
   const [url, setUrl] = useState('');
@@ -105,6 +105,18 @@ export default function DownloaderScreen({ navigation }) {
     await retryDownload(id);
     const queue = await getQueue();
     setQueueItems(queue.filter(item => item.status !== 'completed'));
+  };
+
+  const handleRemove = async (id) => {
+    await removeQueueItem(id);
+    const queue = await getQueue();
+    setQueueItems(queue.filter(item => item.status !== 'completed'));
+  };
+
+  const handleClearAll = async () => {
+    await clearQueue();
+    setQueueItems([]);
+    setQueuedCount(0);
   };
 
   return (
@@ -255,7 +267,13 @@ export default function DownloaderScreen({ navigation }) {
 
         {queueItems.length > 0 && (
           <View style={s.queueList}>
-            <Text style={s.sectionTitle}>File d’attente</Text>
+            <View style={s.queueHeader}>
+              <Text style={s.sectionTitle}>File d’attente</Text>
+              <TouchableOpacity onPress={handleClearAll} style={s.clearAllBtn}>
+                <MaterialIcons name="delete-sweep" size={16} color={C.error} />
+                <Text style={s.clearAllText}>Tout effacer</Text>
+              </TouchableOpacity>
+            </View>
             {queueItems.map(item => {
               const isFailed = item.status === 'failed';
               const progress = Math.max(0, Math.min(1, item.progress || 0));
@@ -279,12 +297,16 @@ export default function DownloaderScreen({ navigation }) {
                       </View>
                     )}
                   </View>
-                  {isFailed && (
-                    <TouchableOpacity style={s.retryBtn} onPress={() => handleRetry(item.id)}>
-                      <MaterialIcons name="refresh" size={18} color={C.brand} />
-                      <Text style={s.retryText}>Réessayer</Text>
+                  <View style={s.queueActions}>
+                    {isFailed && (
+                      <TouchableOpacity style={s.retryBtn} onPress={() => handleRetry(item.id)}>
+                        <MaterialIcons name="refresh" size={18} color={C.brand} />
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity style={s.removeBtn} onPress={() => handleRemove(item.id)}>
+                      <MaterialIcons name="close" size={18} color={C.muted} />
                     </TouchableOpacity>
-                  )}
+                  </View>
                 </Card>
               );
             })}
@@ -314,7 +336,10 @@ const s = StyleSheet.create({
   },
   queueStatusText: { color: C.brand, fontSize: 12, fontWeight: '600' },
   queueList: { gap: 8 },
+  queueHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   sectionTitle: { color: C.muted, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1 },
+  clearAllBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 2, paddingHorizontal: 6 },
+  clearAllText: { color: C.error, fontSize: 12, fontWeight: '600' },
   queueCard: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10 },
   queueIcon: { width: 38, height: 38, borderRadius: 9, backgroundColor: C.elevated, alignItems: 'center', justifyContent: 'center' },
   queueDetails: { flex: 1, gap: 5 },
@@ -323,7 +348,9 @@ const s = StyleSheet.create({
   queueMetaError: { color: C.error },
   progressTrack: { height: 5, borderRadius: 5, overflow: 'hidden', backgroundColor: C.elevated },
   progressFill: { height: '100%', borderRadius: 5, backgroundColor: C.brand },
-  retryBtn: { flexDirection: 'row', alignItems: 'center', gap: 3, padding: 5 },
+  queueActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  retryBtn: { padding: 6 },
+  removeBtn: { padding: 6 },
   retryText: { color: C.brand, fontSize: 11, fontWeight: '700' },
   inputRow: {
     flexDirection: 'row',

@@ -10,6 +10,7 @@ const RESUME_KEY_PREFIX = 'download_resume_';
 const TASK_NAME = 'omnidl-download-queue';
 const API_ORIGIN = 'https://menma-dlx.vercel.app';
 let isProcessing = false;
+const activeResumables = new Map();
 
 if (!TaskManager.isTaskDefined(TASK_NAME)) {
   TaskManager.defineTask(TASK_NAME, async () => {
@@ -171,7 +172,13 @@ async function processItem(item) {
     // Ignore if savable state is unavailable
   }
 
-  const result = await resumable.downloadAsync();
+  activeResumables.set(item.id, resumable);
+  let result;
+  try {
+    result = await resumable.downloadAsync();
+  } finally {
+    activeResumables.delete(item.id);
+  }
   await AsyncStorage.removeItem(resumeKey);
 
   if (!result) throw new Error('Le téléchargement a été interrompu.');
@@ -196,6 +203,62 @@ export async function retryDownload(id) {
     ? { ...item, status: 'pending', progress: 0, error: null }
     : item));
   processQueue();
+}
+
+export async function removeQueueItem(id) {
+  if (activeResumables.has(id)) {
+    const resumable = activeResumables.get(id);
+    try {
+      await resumable.pauseAsync();
+    } catch (_e) {
+      // Ignore errors if pause fails
+    }
+    activeResumables.delete(id);
+  }
+
+  const queue = await readQueue();
+  const targetItem = queue.find(item => item.id === id);
+  if (targetItem) {
+    const ext = targetItem.format === 'audio' ? 'mp3' : 'mp4';
+    const filename = targetItem.filename || makeSafeFilename(targetItem.title, ext);
+    const temporaryUri = `${FileSystem.documentDirectory}${filename}`;
+    try {
+      await FileSystem.deleteAsync(temporaryUri, { idempotent: true });
+    } catch (_e) {
+      // Ignore file deletion error
+    }
+  }
+
+  await AsyncStorage.removeItem(`${RESUME_KEY_PREFIX}${id}`);
+  const updatedQueue = queue.filter(item => item.id !== id);
+  await writeQueue(updatedQueue);
+}
+
+export async function clearQueue() {
+  for (const [id, resumable] of activeResumables.entries()) {
+    try {
+      await resumable.pauseAsync();
+    } catch (_e) {
+      // Ignore errors if pause fails
+    }
+    await AsyncStorage.removeItem(`${RESUME_KEY_PREFIX}${id}`);
+  }
+  activeResumables.clear();
+
+  const queue = await readQueue();
+  for (const item of queue) {
+    const ext = item.format === 'audio' ? 'mp3' : 'mp4';
+    const filename = item.filename || makeSafeFilename(item.title, ext);
+    const temporaryUri = `${FileSystem.documentDirectory}${filename}`;
+    try {
+      await FileSystem.deleteAsync(temporaryUri, { idempotent: true });
+    } catch (_e) {
+      // Ignore file deletion error
+    }
+    await AsyncStorage.removeItem(`${RESUME_KEY_PREFIX}${item.id}`);
+  }
+
+  await writeQueue([]);
 }
 
 export async function processQueue() {
