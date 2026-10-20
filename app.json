@@ -9,6 +9,13 @@
     "assetBundlePatterns": [
       "**/*"
     ],
+    "updates": {
+      "enabled": true,
+      "fallbackToCacheTimeout": 0
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
@@ -21,7 +28,7 @@
       "package": "com.menma.omnidl",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#121318"
+        "backgroundColor": "#0c0d12"
       },
       "permissions": [
         "android.permission.INTERNET",
