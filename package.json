@@ -6,9 +6,12 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "check": "expo export --platform android",
+    "doctor": "npx expo-doctor",
     "lint": "expo lint",
-    "test": "node --test test/*.test.js"
+    "typecheck": "tsc --noEmit",
+    "check": "expo export --platform android && expo export --platform ios",
+    "test:unit": "node --test test/*.test.js",
+    "test": "npm run doctor && npm run lint && npm run typecheck && npm run check && npm run test:unit"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
@@ -25,6 +28,7 @@
     "expo-sharing": "~57.0.23",
     "expo-status-bar": "~57.0.1",
     "expo-task-manager": "~57.0.21",
+    "expo-updates": "~57.0.26",
     "react": "19.2.3",
     "react-native": "0.86.3",
     "react-native-safe-area-context": "~5.7.0",
@@ -33,8 +37,11 @@
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
+    "@types/react": "~19.2.4",
     "eslint": "^9.0.0",
-    "eslint-config-expo": "~57.0.2"
+    "eslint-config-expo": "~57.0.2",
+    "expo-doctor": "^1.21.5",
+    "typescript": "^6.0.3"
   },
   "private": true
 }
