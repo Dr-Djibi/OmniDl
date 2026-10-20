@@ -10,7 +10,8 @@
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "check": "expo export --platform android && expo export --platform ios",
-    "test": "npm run doctor && npm run lint && npm run typecheck && npm run check"
+    "test:unit": "node --test test/*.test.js",
+    "test": "npm run doctor && npm run lint && npm run typecheck && npm run check && npm run test:unit"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
@@ -39,6 +40,7 @@
     "@types/react": "~19.2.4",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~57.0.2",
+    "expo-doctor": "^1.21.5",
     "typescript": "^6.0.3"
   },
   "private": true

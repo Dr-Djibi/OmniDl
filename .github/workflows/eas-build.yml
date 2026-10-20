@@ -45,18 +45,6 @@ jobs:
       - name: 📥 Install dependencies
         run: npm ci
 
-      - name: 🩺 Run Expo Doctor
-        run: npm run doctor
-
-      - name: 🧹 Run ESLint
-        run: npm run lint
-
-      - name: 📘 Run TypeScript Check
-        run: npm run typecheck
-
-      - name: 📦 Verify Bundle Export
-        run: npm run check
-
       - name: 🧪 Run Quality Test Suite
         run: npm test
 

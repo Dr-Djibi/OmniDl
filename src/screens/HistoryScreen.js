@@ -133,9 +133,14 @@ export default function HistoryScreen() {
                 <Text style={s.itemTitle} numberOfLines={1}>
                   {item.title}
                 </Text>
-                <Text style={s.itemMeta}>
-                  {item.resolution} • {item.size}
-                </Text>
+                <View style={s.subMetaRow}>
+                  <View style={s.extBadge}>
+                    <Text style={s.extBadgeText}>{item.ext || (isVideo ? 'MP4' : 'MP3')}</Text>
+                  </View>
+                  <Text style={s.itemMeta}>
+                    {item.resolution} • {item.size}
+                  </Text>
+                </View>
                 <Text style={s.itemTime}>{item.time}</Text>
               </View>
 
@@ -205,7 +210,25 @@ const s = StyleSheet.create({
   },
   metaWrap: {
     flex: 1,
-    gap: 2,
+    gap: 3,
+  },
+  subMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  extBadge: {
+    backgroundColor: C.elevated,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  extBadgeText: {
+    color: C.brand,
+    fontSize: 10,
+    fontWeight: '700',
   },
   itemTitle: {
     color: C.text,
