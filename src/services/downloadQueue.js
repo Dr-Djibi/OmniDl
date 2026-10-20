@@ -3,6 +3,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as TaskManager from 'expo-task-manager';
 import * as BackgroundFetch from 'expo-background-fetch';
 import { sendDownloadNotification } from './notifications';
+import { validateFileIntegrity, validateResponseHeaders } from './fileValidator';
 
 const QUEUE_KEY = 'download_queue';
 const HISTORY_KEY = 'download_history';
@@ -31,8 +32,10 @@ if (!TaskManager.isTaskDefined(TASK_NAME)) {
 const makeSafeFilename = (title, ext) => {
   const safeTitle = (title || 'OmniDL_Media')
     .replace(/[^a-zA-Z0-9-_]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '')
     .slice(0, 80);
-  return `${safeTitle}_${Date.now()}.${ext}`;
+  return `${safeTitle || 'Media'}_${Date.now()}.${ext}`;
 };
 
 async function readQueue() {
@@ -57,6 +60,9 @@ export async function enqueueDownload({ downloadResult, format }) {
   const rawDownloadUrl = downloadResult.download_url || downloadResult.downloadUrl;
   if (!rawDownloadUrl) throw new Error('Le serveur n’a fourni aucun lien de téléchargement.');
 
+  const itemFormat = downloadResult.format || format || 'video';
+  const itemExt = itemFormat === 'audio' ? 'mp3' : 'mp4';
+
   const item = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     title: downloadResult.title || 'Média sans titre',
@@ -64,7 +70,8 @@ export async function enqueueDownload({ downloadResult, format }) {
       ? rawDownloadUrl
       : `${API_ORIGIN}${rawDownloadUrl.startsWith('/') ? '' : '/'}${rawDownloadUrl}`,
     quality: downloadResult.quality,
-    format: downloadResult.format || format,
+    format: itemFormat,
+    ext: itemExt,
     status: 'pending',
     progress: 0,
     createdAt: Date.now(),
@@ -75,47 +82,62 @@ export async function enqueueDownload({ downloadResult, format }) {
   return item;
 }
 
-async function saveHistory(item, uri, size) {
+async function saveHistory(item, uri, size, mimeType) {
   const stored = await AsyncStorage.getItem(HISTORY_KEY);
   const history = stored ? JSON.parse(stored) : [];
   history.unshift({
     id: item.id,
     title: item.title,
     format: item.format,
-    ext: item.ext.toUpperCase(),
+    ext: (item.ext || 'mp4').toUpperCase(),
+    mimeType: mimeType || (item.format === 'audio' ? 'audio/mpeg' : 'video/mp4'),
     resolution: item.quality === 'hd' ? '1080p' : '480p',
     size: size ? `${(size / (1024 * 1024)).toFixed(1)} Mo` : 'Inconnu',
+    bytesSize: size || 0,
     time: new Date().toLocaleString(),
     uri,
   });
   await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, 50)));
 }
 
-async function moveToDestination(sourceUri, filename, ext) {
+async function moveToDestination(sourceUri, filename, ext, mimeType) {
   const customFolderUri = await AsyncStorage.getItem('custom_folder_uri');
   if (!customFolderUri) return sourceUri;
 
   try {
+    const sourceInfo = await FileSystem.getInfoAsync(sourceUri);
+    const targetMime = mimeType || (ext === 'mp3' ? 'audio/mpeg' : 'video/mp4');
+
     await FileSystem.StorageAccessFramework.readDirectoryAsync(customFolderUri);
     const destinationUri = await FileSystem.StorageAccessFramework.createFileAsync(
       customFolderUri,
       filename,
-      ext === 'mp3' ? 'audio/mpeg' : 'video/mp4'
+      targetMime
     );
+
     await FileSystem.copyAsync({ from: sourceUri, to: destinationUri });
-    await FileSystem.deleteAsync(sourceUri, { idempotent: true });
-    return destinationUri;
+
+    // Verify copy integrity before deleting source
+    const destInfo = await FileSystem.getInfoAsync(destinationUri);
+    if (destInfo.exists && (destInfo.size > 0 || !sourceInfo.size || destInfo.size === sourceInfo.size)) {
+      await FileSystem.deleteAsync(sourceUri, { idempotent: true });
+      return destinationUri;
+    } else {
+      // SAF copy produced empty/corrupt file, clean it up and keep local source
+      await FileSystem.deleteAsync(destinationUri, { idempotent: true });
+      return sourceUri;
+    }
   } catch (_storageError) {
-    await AsyncStorage.removeItem('custom_folder_uri');
+    // If custom folder access fails, safely retain local file
     return sourceUri;
   }
 }
 
 async function processItem(item) {
-  const ext = item.format === 'audio' ? 'mp3' : 'mp4';
-  const filename = item.filename || makeSafeFilename(item.title, ext);
+  const initialExt = item.ext || (item.format === 'audio' ? 'mp3' : 'mp4');
+  const filename = item.filename || makeSafeFilename(item.title, initialExt);
   const temporaryUri = `${FileSystem.documentDirectory}${filename}`;
-  await updateQueueItem(item.id, { status: 'downloading', filename, ext, error: null });
+  await updateQueueItem(item.id, { status: 'downloading', filename, ext: initialExt, error: null });
 
   let lastProgressUpdate = 0;
   let lastProgressValue = item.progress || 0;
@@ -181,23 +203,80 @@ async function processItem(item) {
   }
   await AsyncStorage.removeItem(resumeKey);
 
-  if (!result) throw new Error('Le téléchargement a été interrompu.');
-  if (result.status < 200 || result.status >= 300) {
-    throw new Error(`Le serveur a refusé le téléchargement (${result.status}).`);
+  if (!result) {
+    throw new Error('Le téléchargement a été interrompu.');
   }
-  const info = await FileSystem.getInfoAsync(result.uri);
-  const finalUri = await moveToDestination(result.uri, filename, ext);
-  await saveHistory({ ...item, ext }, finalUri, info.size);
+
+  if (result.status < 200 || result.status >= 300) {
+    try {
+      await FileSystem.deleteAsync(temporaryUri, { idempotent: true });
+    } catch (_e) {
+      // Ignore
+    }
+    throw new Error(`Le serveur a refusé le téléchargement (Code HTTP ${result.status}).`);
+  }
+
+  // Header validation
+  if (result.headers) {
+    const headerCheck = validateResponseHeaders(result.headers, item.format);
+    if (!headerCheck.valid) {
+      try {
+        await FileSystem.deleteAsync(temporaryUri, { idempotent: true });
+      } catch (_e) {
+        // Ignore
+      }
+      throw new Error(headerCheck.error);
+    }
+  }
+
+  // File Integrity & Magic Byte Validation
+  const validation = await validateFileIntegrity(result.uri, item.format);
+  if (!validation.valid) {
+    try {
+      await FileSystem.deleteAsync(result.uri, { idempotent: true });
+    } catch (_e) {
+      // Ignore
+    }
+    throw new Error(validation.error || 'Le fichier téléchargé est corrompu.');
+  }
+
+  const finalExt = validation.ext || initialExt;
+  const mimeType = validation.mimeType || (item.format === 'audio' ? 'audio/mpeg' : 'video/mp4');
+
+  const finalUri = await moveToDestination(result.uri, filename, finalExt, mimeType);
+  await saveHistory({ ...item, ext: finalExt }, finalUri, validation.size, mimeType);
   await sendDownloadNotification('Téléchargement terminé', item.title, { id: item.id });
 
   const latestQueue = await readQueue();
   await writeQueue(latestQueue.map(entry => entry.id === item.id
-    ? { ...entry, status: 'completed', progress: 1, uri: finalUri, size: info.size, error: null }
+    ? {
+        ...entry,
+        status: 'completed',
+        progress: 1,
+        uri: finalUri,
+        size: validation.size,
+        ext: finalExt,
+        mimeType,
+        error: null,
+      }
     : entry));
 }
 
 export async function retryDownload(id) {
   const queue = await readQueue();
+  const targetItem = queue.find(item => item.id === id);
+
+  if (targetItem) {
+    const ext = targetItem.ext || (targetItem.format === 'audio' ? 'mp3' : 'mp4');
+    const filename = targetItem.filename || makeSafeFilename(targetItem.title, ext);
+    const temporaryUri = `${FileSystem.documentDirectory}${filename}`;
+    try {
+      await FileSystem.deleteAsync(temporaryUri, { idempotent: true });
+    } catch (_e) {
+      // Ignore
+    }
+  }
+
   await AsyncStorage.removeItem(`${RESUME_KEY_PREFIX}${id}`);
   await writeQueue(queue.map(item => item.id === id
     ? { ...item, status: 'pending', progress: 0, error: null }
@@ -219,7 +298,7 @@ export async function removeQueueItem(id) {
   const queue = await readQueue();
   const targetItem = queue.find(item => item.id === id);
   if (targetItem) {
-    const ext = targetItem.format === 'audio' ? 'mp3' : 'mp4';
+    const ext = targetItem.ext || (targetItem.format === 'audio' ? 'mp3' : 'mp4');
     const filename = targetItem.filename || makeSafeFilename(targetItem.title, ext);
     const temporaryUri = `${FileSystem.documentDirectory}${filename}`;
     try {
@@ -247,7 +326,7 @@ export async function clearQueue() {
 
   const queue = await readQueue();
   for (const item of queue) {
-    const ext = item.format === 'audio' ? 'mp3' : 'mp4';
+    const ext = item.ext || (item.format === 'audio' ? 'mp3' : 'mp4');
     const filename = item.filename || makeSafeFilename(item.title, ext);
     const temporaryUri = `${FileSystem.documentDirectory}${filename}`;
     try {
@@ -271,12 +350,13 @@ export async function processQueue() {
     while (next) {
       try {
         await processItem(next);
-      } catch (_error) {
+      } catch (error) {
+        const errorMsg = error.message || 'Téléchargement impossible. Appuyez sur Réessayer.';
         const latestQueue = await readQueue();
         await writeQueue(latestQueue.map(item => item.id === next.id
-          ? { ...item, status: 'failed', progress: 0, error: 'Téléchargement impossible. Appuyez sur Réessayer.' }
+          ? { ...item, status: 'failed', progress: 0, error: errorMsg }
           : item));
-        await sendDownloadNotification('Téléchargement impossible', next.title, { id: next.id });
+        await sendDownloadNotification('Téléchargement échoué', next.title, { id: next.id });
       }
 
       queue = await readQueue();

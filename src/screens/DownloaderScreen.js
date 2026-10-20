@@ -38,7 +38,6 @@ export default function DownloaderScreen({ navigation }) {
     };
   }, [isSaved]);
 
-
   const handlePaste = async () => {
     try {
       const text = await Clipboard.getStringAsync();
@@ -63,14 +62,13 @@ export default function DownloaderScreen({ navigation }) {
         },
         body: JSON.stringify({ url: url.trim(), format, quality: 'hd' }),
       });
-      
+
       const responseText = await response.text();
       let data;
       try {
         data = JSON.parse(responseText);
       } catch (_parseError) {
-        // Le backend n'a pas renvoyé de JSON, on crée un objet d'erreur avec le texte brut reçu
-        data = { success: false, error: responseText || "Le serveur a renvoyé une réponse invalide." };
+        data = { success: false, error: responseText || 'Le serveur a renvoyé une réponse invalide.' };
       }
 
       if (data.success) {
@@ -93,7 +91,6 @@ export default function DownloaderScreen({ navigation }) {
       await enqueueDownload({ downloadResult, format });
       setIsSaved(true);
       setQueuedCount(count => count + 1);
-
     } catch (_e) {
       setError('Impossible d’ajouter ce téléchargement. Réessayez.');
     } finally {
@@ -288,8 +285,12 @@ export default function DownloaderScreen({ navigation }) {
                   </View>
                   <View style={s.queueDetails}>
                     <Text style={s.queueTitle} numberOfLines={1}>{item.title}</Text>
-                    <Text style={[s.queueMeta, isFailed && s.queueMetaError]} numberOfLines={1}>
-                      {isFailed ? 'Téléchargement impossible. Réessayez.' : item.status === 'downloading' ? `${Math.round(progress * 100)} %` : 'En attente'}
+                    <Text style={[s.queueMeta, isFailed && s.queueMetaError]} numberOfLines={2}>
+                      {isFailed
+                        ? (item.error || 'Fichier corrompu ou incomplet. Appuyez sur Réessayer.')
+                        : item.status === 'downloading'
+                          ? `Téléchargement : ${Math.round(progress * 100)} %`
+                          : 'En attente...'}
                     </Text>
                     {!isFailed && (
                       <View style={s.progressTrack}>

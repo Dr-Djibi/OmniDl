@@ -7,7 +7,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "check": "expo export --platform android",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
