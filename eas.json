@@ -16,6 +16,13 @@
       }
     },
     "production": {
+      "distribution": "internal",
+      "channel": "production",
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "store": {
       "channel": "production",
       "android": {
         "buildType": "app-bundle"

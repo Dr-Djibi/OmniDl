@@ -1,31 +1,21 @@
-name: Build APK / AAB Binaries
+name: Build Android APK / Play Store AAB
 
 on:
-  push:
-    tags:
-      - 'v*'
   release:
     types: [published]
   workflow_dispatch:
     inputs:
       profile:
-        description: 'EAS Build Profile'
+        description: 'EAS build target'
         required: true
         default: 'production'
         type: choice
         options:
           - production
-          - preview
-          - development
-      platform:
-        description: 'Target Platform'
-        required: true
-        default: 'android'
-        type: choice
-        options:
-          - android
-          - ios
-          - all
+          - store
+
+permissions:
+  contents: write
 
 jobs:
   quality-checks:
@@ -49,9 +39,11 @@ jobs:
         run: npm test
 
   eas-build:
-    name: EAS / Release Binary Build
+    name: EAS Android build
     needs: quality-checks
     runs-on: ubuntu-latest
+    env:
+      EAS_PROFILE: ${{ github.event.inputs.profile || 'production' }}
 
     steps:
       - name: 📦 Checkout code
@@ -78,11 +70,64 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
-      - name: 🏗️ Trigger EAS Build
-        id: eas-build-step
-        run: |
-          PROFILE="${{ github.event.inputs.profile || 'production' }}"
-          PLATFORM="${{ github.event.inputs.platform || 'android' }}"
-          eas build --platform "$PLATFORM" --profile "$PROFILE" --non-interactive
+      - name: 🏗️ Build Android binary with EAS
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          eas build --platform android --profile "$EAS_PROFILE" --non-interactive --wait --json > eas-build.json
+          BUILD_ID="$(jq -r '.[0].id // empty' eas-build.json)"
+          if [ -z "$BUILD_ID" ]; then
+            echo "EAS did not return a build ID."
+            exit 1
+          fi
+
+          eas build:download --id "$BUILD_ID" --json > eas-download.json
+          ARTIFACT_PATH="$(jq -r '.path // empty' eas-download.json)"
+          if [ -z "$ARTIFACT_PATH" ] || [ ! -f "$ARTIFACT_PATH" ]; then
+            echo "EAS did not provide a downloadable build artifact."
+            exit 1
+          fi
+
+          if [ "$EAS_PROFILE" = "production" ]; then
+            cp "$ARTIFACT_PATH" OmniDL.apk
+          else
+            cp "$ARTIFACT_PATH" OmniDL.aab
+          fi
+
+      - name: 🏷️ Select GitHub Release
+        id: release
+        if: env.EAS_PROFILE == 'production'
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            VERSION="$(node -p "require('./app.json').expo.version")"
+            RELEASE_TAG="v$VERSION"
+          else
+            RELEASE_TAG="$GITHUB_REF_NAME"
+          fi
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: 🚀 Create GitHub Release if needed
+        if: env.EAS_PROFILE == 'production'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" --title "$RELEASE_TAG" --generate-notes
+          fi
+
+      - name: 📥 Attach APK to GitHub Release
+        if: env.EAS_PROFILE == 'production'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: gh release upload "$RELEASE_TAG" OmniDL.apk --clobber
+
+      - name: 📦 Save Play Store AAB
+        if: env.EAS_PROFILE == 'store'
+        uses: actions/upload-artifact@v4
+        with:
+          name: OmniDL-Play-Store-AAB
+          path: OmniDL.aab
+          if-no-files-found: error
+          retention-days: 30

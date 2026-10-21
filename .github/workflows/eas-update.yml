@@ -56,6 +56,6 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: 📲 Publish EAS Update
-        run: eas update --auto --non-interactive
+        run: eas update --branch production --message "GitHub Actions ${GITHUB_SHA}" --non-interactive
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
