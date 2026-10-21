@@ -44,6 +44,12 @@
       "expo-notifications",
       "expo-font",
       "expo-updates"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "1e2a5fec-182d-4c29-b95d-3e6f38864463"
+      }
+    },
+    "owner": "dr-djibi"
   }
 }
