@@ -7,15 +7,28 @@ try {
 
 const BASE64_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
+// Precomputed ASCII lookup table for O(1) Base64 character decoding
+// Replaces O(64) BASE64_CHARS.indexOf() search per character with direct table array indexing
+const BASE64_LOOKUP = new Int16Array(256).fill(-1);
+for (let i = 0; i < BASE64_CHARS.length; i++) {
+  BASE64_LOOKUP[BASE64_CHARS.charCodeAt(i)] = i;
+}
+
 export function decodeBase64ToBytes(base64) {
   const clean = (base64 || '').replace(/[^A-Za-z0-9+/=]/g, '');
   const bytes = [];
   let i = 0;
-  while (i < clean.length) {
-    const enc1 = BASE64_CHARS.indexOf(clean.charAt(i++));
-    const enc2 = BASE64_CHARS.indexOf(clean.charAt(i++));
-    const enc3 = BASE64_CHARS.indexOf(clean.charAt(i++));
-    const enc4 = BASE64_CHARS.indexOf(clean.charAt(i++));
+  const len = clean.length;
+  while (i < len) {
+    const code1 = clean.charCodeAt(i++);
+    const code2 = clean.charCodeAt(i++);
+    const code3 = clean.charCodeAt(i++);
+    const code4 = clean.charCodeAt(i++);
+
+    const enc1 = code1 < 256 ? BASE64_LOOKUP[code1] : -1;
+    const enc2 = code2 < 256 ? BASE64_LOOKUP[code2] : -1;
+    const enc3 = code3 < 256 ? BASE64_LOOKUP[code3] : -1;
+    const enc4 = code4 < 256 ? BASE64_LOOKUP[code4] : -1;
 
     if (enc1 === -1 || enc2 === -1) break;
 
