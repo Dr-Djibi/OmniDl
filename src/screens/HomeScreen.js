@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Image, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Image, StyleSheet, ScrollView, Alert, Platform } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { downloadMediaFile } from '../services/downloadQueue';
 
 export default function HomeScreen() {
   const [url, setUrl] = useState('');
@@ -8,16 +9,26 @@ export default function HomeScreen() {
   const [isExtracting, setIsExtracting] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [downloadResult, setDownloadResult] = useState(null);
+  const [errorMsg, setErrorMsg] = useState(null);
 
   const handlePaste = () => {
-    // In a real app, read from clipboard
     setUrl('https://tiktok.com/@cyber/video/729104882194');
+    setErrorMsg(null);
+  };
+
+  const notifyUser = (title, message) => {
+    if (Platform.OS === 'web' && typeof alert !== 'undefined') {
+      alert(`${title}: ${message}`);
+    } else {
+      Alert.alert(title, message);
+    }
   };
 
   const handleExtract = async () => {
-    if (!url) return;
+    if (!url || !url.trim()) return;
     setIsExtracting(true);
     setDownloadResult(null);
+    setErrorMsg(null);
     try {
       const response = await fetch('https://menma-dlx.vercel.app/api/download', {
         method: 'POST',
@@ -25,31 +36,45 @@ export default function HomeScreen() {
           'Content-Type': 'application/json',
           'X-Tenant-Key': 'key_app'
         },
-        body: JSON.stringify({ url, format, quality: 'hd' }),
+        body: JSON.stringify({ url: url.trim(), format, quality: 'hd' }),
       });
       
-      const data = await response.json();
-      if (data.success) {
+      const responseText = await response.text();
+      let data;
+      try {
+        data = JSON.parse(responseText.trim());
+      } catch (_parseError) {
+        data = { success: false, error: responseText || 'Réponse invalide du serveur.' };
+      }
+
+      if (response.ok && data.success) {
         setDownloadResult(data);
       } else {
-        alert('Erreur: ' + data.error);
+        const error = data?.error || data?.message || 'Erreur lors de la récupération du média.';
+        setErrorMsg(error);
+        notifyUser('Erreur', error);
       }
     } catch (error) {
-      alert('Erreur de connexion API: ' + error.message);
+      const msg = error.message || 'Impossible de se connecter au serveur.';
+      setErrorMsg(msg);
+      notifyUser('Erreur de connexion', msg);
     } finally {
       setIsExtracting(false);
     }
   };
 
-  const handleSave = () => {
-    if (!downloadResult || !downloadResult.download_url) return;
-    setIsSaved(true);
-    import('react-native').then(({ Linking }) => {
-      Linking.openURL(downloadResult.download_url);
-    });
-    setTimeout(() => {
+  const handleSave = async () => {
+    if (!downloadResult || (!downloadResult.download_url && !downloadResult.downloadUrl)) return;
+    try {
+      setIsSaved(true);
+      await downloadMediaFile({ downloadResult, format });
+      setTimeout(() => {
+        setIsSaved(false);
+      }, 3000);
+    } catch (error) {
       setIsSaved(false);
-    }, 2000);
+      notifyUser('Erreur de téléchargement', error.message || 'Le téléchargement a échoué.');
+    }
   };
 
   return (
@@ -59,6 +84,13 @@ export default function HomeScreen() {
         <Text style={styles.h1}>Téléchargement</Text>
         <Text style={styles.subtitle}>Téléchargez vidéos et audios à partir d&apos;un lien.</Text>
       </View>
+
+        {errorMsg && (
+          <View style={styles.errorBox}>
+            <MaterialIcons name="error-outline" size={16} color="#f87171" />
+            <Text style={styles.errorText}>{errorMsg}</Text>
+          </View>
+        )}
 
       {/* Input */}
       <View style={styles.inputSection}>
@@ -152,6 +184,21 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 12,
     color: '#cbc3d7',
+  },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(248,113,113,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(248,113,113,0.3)',
+    borderRadius: 10,
+    padding: 10,
+  },
+  errorText: {
+    color: '#f87171',
+    fontSize: 12,
+    flex: 1,
   },
   inputSection: {
     flexDirection: 'row',

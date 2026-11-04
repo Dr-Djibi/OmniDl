@@ -1,9 +1,10 @@
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as TaskManager from 'expo-task-manager';
 import * as BackgroundFetch from 'expo-background-fetch';
-import { sendDownloadNotification } from './notifications';
-import { validateFileIntegrity, validateResponseHeaders } from './fileValidator';
+import { sendDownloadNotification } from './notifications.js';
+import { validateFileIntegrity, validateResponseHeaders } from './fileValidator.js';
 
 const QUEUE_KEY = 'download_queue';
 const HISTORY_KEY = 'download_history';
@@ -158,13 +159,16 @@ async function processItem(item) {
   const storedResumeData = await AsyncStorage.getItem(resumeKey);
 
   let resumable;
+  const isDirectApi = item.downloadUrl.startsWith(API_ORIGIN);
+  const downloadHeaders = isDirectApi ? { 'X-Tenant-Key': 'key_app' } : {};
+
   if (storedResumeData) {
     try {
       const savable = JSON.parse(storedResumeData);
       resumable = new FileSystem.DownloadResumable(
         savable.url,
         savable.fileUri,
-        savable.options,
+        savable.options || (Object.keys(downloadHeaders).length > 0 ? { headers: downloadHeaders } : {}),
         callback,
         savable.resumeData
       );
@@ -172,7 +176,7 @@ async function processItem(item) {
       resumable = FileSystem.createDownloadResumable(
         item.downloadUrl,
         temporaryUri,
-        { headers: { 'X-Tenant-Key': 'key_app' } },
+        Object.keys(downloadHeaders).length > 0 ? { headers: downloadHeaders } : {},
         callback
       );
     }
@@ -180,7 +184,7 @@ async function processItem(item) {
     resumable = FileSystem.createDownloadResumable(
       item.downloadUrl,
       temporaryUri,
-      { headers: { 'X-Tenant-Key': 'key_app' } },
+      Object.keys(downloadHeaders).length > 0 ? { headers: downloadHeaders } : {},
       callback
     );
   }
@@ -367,7 +371,45 @@ export async function processQueue() {
   }
 }
 
+/**
+ * Web download implementation:
+ * Fetches stream as binary blob, ensures no HTML/JSON errors are disguised as media,
+ * and triggers browser file download cleanly.
+ */
+import { downloadFileWeb } from './webDownloader.js';
+export { downloadFileWeb };
+
+/**
+ * Universal media downloader function for both Web and Mobile.
+ */
+export async function downloadMediaFile({ downloadResult, format }) {
+  const rawDownloadUrl = downloadResult?.download_url || downloadResult?.downloadUrl;
+  if (!rawDownloadUrl) {
+    throw new Error('Le serveur n’a fourni aucun lien de téléchargement.');
+  }
+
+  const itemFormat = downloadResult?.format || format || 'video';
+  const itemExt = itemFormat === 'audio' ? 'mp3' : 'mp4';
+  const filename = makeSafeFilename(downloadResult?.title, itemExt);
+  const mimeType = itemFormat === 'audio' ? 'audio/mpeg' : 'video/mp4';
+
+  const finalUrl = rawDownloadUrl.startsWith('http')
+    ? rawDownloadUrl
+    : `${API_ORIGIN}${rawDownloadUrl.startsWith('/') ? '' : '/'}${rawDownloadUrl}`;
+
+  if (Platform.OS === 'web') {
+    return downloadFileWeb({
+      url: finalUrl,
+      filename,
+      mimeType,
+    });
+  }
+
+  return enqueueDownload({ downloadResult, format: itemFormat });
+}
+
 export async function registerQueueTask() {
+  if (Platform.OS === 'web') return;
   try {
     const status = await BackgroundFetch.getStatusAsync();
     if (status !== BackgroundFetch.BackgroundFetchStatus.Denied) {
