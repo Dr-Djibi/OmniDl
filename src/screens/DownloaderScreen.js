@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, ActivityIndicator
+  StyleSheet, ScrollView, ActivityIndicator, Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { C } from '../theme/colors';
 import { AppHeader, IconBtn, Card } from '../components/UI';
-import { enqueueDownload, getQueue, retryDownload, removeQueueItem, clearQueue } from '../services/downloadQueue';
+import { enqueueDownload, downloadMediaFile, getQueue, retryDownload, removeQueueItem, clearQueue } from '../services/downloadQueue';
 
 export default function DownloaderScreen({ navigation }) {
   const [url, setUrl] = useState('');
@@ -66,18 +66,19 @@ export default function DownloaderScreen({ navigation }) {
       const responseText = await response.text();
       let data;
       try {
-        data = JSON.parse(responseText);
+        data = JSON.parse(responseText.trim());
       } catch (_parseError) {
         data = { success: false, error: responseText || 'Le serveur a renvoyé une réponse invalide.' };
       }
 
-      if (data.success) {
+      if (response.ok && data.success) {
         setDownloadResult(data);
       } else {
-        setError('Impossible de préparer ce téléchargement. Vérifiez le lien et réessayez.');
+        const errorMsg = data?.error || data?.message || 'Impossible de préparer ce téléchargement. Vérifiez le lien et réessayez.';
+        setError(errorMsg);
       }
-    } catch (_e) {
-      setError('Connexion impossible. Vérifiez Internet et réessayez.');
+    } catch (e) {
+      setError(e.message || 'Connexion impossible. Vérifiez Internet et réessayez.');
     } finally {
       setIsExtracting(false);
     }
@@ -88,11 +89,17 @@ export default function DownloaderScreen({ navigation }) {
     setIsSaving(true);
     setError(null);
     try {
-      await enqueueDownload({ downloadResult, format });
-      setIsSaved(true);
-      setQueuedCount(count => count + 1);
-    } catch (_e) {
-      setError('Impossible d’ajouter ce téléchargement. Réessayez.');
+      if (Platform.OS === 'web') {
+        await downloadMediaFile({ downloadResult, format });
+        setIsSaved(true);
+        setTimeout(() => setIsSaved(false), 3000);
+      } else {
+        await enqueueDownload({ downloadResult, format });
+        setIsSaved(true);
+        setQueuedCount(count => count + 1);
+      }
+    } catch (e) {
+      setError(e.message || 'Impossible d’ajouter ce téléchargement. Réessayez.');
     } finally {
       setIsSaving(false);
     }
@@ -256,7 +263,11 @@ export default function DownloaderScreen({ navigation }) {
                 style={{ marginRight: 6 }}
               />
               <Text style={[s.saveBtnText, isSaved && { color: C.success }]}>
-                {isSaved ? 'Ajouté à la file' : isSaving ? 'Ajout à la file...' : 'Ajouter à la file'}
+                {isSaved
+                  ? (Platform.OS === 'web' ? 'Téléchargé !' : 'Ajouté à la file')
+                  : isSaving
+                    ? (Platform.OS === 'web' ? 'Téléchargement...' : 'Ajout à la file...')
+                    : (Platform.OS === 'web' ? 'Télécharger le fichier' : 'Ajouter à la file')}
               </Text>
             </TouchableOpacity>
           </Card>
