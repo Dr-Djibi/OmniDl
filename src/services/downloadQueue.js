@@ -105,8 +105,13 @@ async function moveToDestination(sourceUri, filename, ext, mimeType) {
   const customFolderUri = await AsyncStorage.getItem('custom_folder_uri');
   if (!customFolderUri) return sourceUri;
 
+  let createdSafUri = null;
   try {
     const sourceInfo = await FileSystem.getInfoAsync(sourceUri);
+    if (!sourceInfo.exists || (sourceInfo.size !== undefined && sourceInfo.size === 0)) {
+      return sourceUri;
+    }
+
     const targetMime = mimeType || (ext === 'mp3' ? 'audio/mpeg' : 'video/mp4');
 
     await FileSystem.StorageAccessFramework.readDirectoryAsync(customFolderUri);
@@ -115,20 +120,32 @@ async function moveToDestination(sourceUri, filename, ext, mimeType) {
       filename,
       targetMime
     );
+    createdSafUri = destinationUri;
 
-    await FileSystem.copyAsync({ from: sourceUri, to: destinationUri });
+    // Android copyAsync cannot copy from file:// to content:// SAF URI without leaving 0 bytes.
+    // Read binary data in Base64 and write into the SAF content URI:
+    const base64Data = await FileSystem.readAsStringAsync(sourceUri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
 
-    // Verify copy integrity before deleting source
-    const destInfo = await FileSystem.getInfoAsync(destinationUri);
-    if (destInfo.exists && (destInfo.size > 0 || !sourceInfo.size || destInfo.size === sourceInfo.size)) {
-      await FileSystem.deleteAsync(sourceUri, { idempotent: true });
-      return destinationUri;
-    } else {
-      // SAF copy produced empty/corrupt file, clean it up and keep local source
-      await FileSystem.deleteAsync(destinationUri, { idempotent: true });
-      return sourceUri;
+    if (!base64Data || base64Data.length === 0) {
+      throw new Error('Données source vides lors de la lecture Base64.');
     }
+
+    await FileSystem.StorageAccessFramework.writeAsStringAsync(destinationUri, base64Data, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+
+    await FileSystem.deleteAsync(sourceUri, { idempotent: true });
+    return destinationUri;
   } catch (_storageError) {
+    if (createdSafUri) {
+      try {
+        await FileSystem.deleteAsync(createdSafUri, { idempotent: true });
+      } catch (_cleanupError) {
+        // Ignore
+      }
+    }
     // If custom folder access fails, safely retain local file
     return sourceUri;
   }
